@@ -1,5 +1,7 @@
 # Site PC Installation Guide (Windows 10 / 11)
 
+**Multi-site:** one PC = one machine = one ERP branch. See [MULTI_SITE_CONFIG.md](MULTI_SITE_CONFIG.md).
+
 Copy the **entire project folder** to the target PC (any path). Examples:
 
 - `D:\HRMS`
@@ -17,7 +19,8 @@ Do **not** depend on `C:\Users\YourName\...` — all scripts resolve paths from 
 | **All-in-one** | `SETUP_NEW_PC.cmd` | Configure + install + autostart |
 | **Or step 1** | `1-CONFIGURE_SITE.cmd` | Create `configs\site.local.yaml` |
 | **Or step 2** | `2-INSTALL_FACTORY.cmd` | Install + autostart (Admin) |
-| **Optional step 3** | `3-CONFIGURE_DEVICE.cmd` | Firewall + device live-push (Admin) |
+| **Optional step 3** | `3-CONFIGURE_DEVICE.cmd` | **Lock PC LAN IP** + firewall + device live-push (Admin) |
+| **Optional step 3b** | `4-CONFIGURE_LAN_IP.cmd` | LAN static IP only (Admin) |
 | **Check** | `CHECK_STATUS.cmd` | Health check |
 | **After moving folder** | `REPAIR_AUTOSTART.cmd` | Re-register tasks with new path (Admin) |
 
@@ -42,6 +45,18 @@ Edit **`configs\site.local.yaml`** (created from `site.local.yaml.example`):
 | `middleware_api_key` | Key for `/api/v1/*` calls |
 | `cloudflare_public_hostname` | Public hostname (no `https://`) |
 | `device_lan_ip_for_firewall` | Optional; defaults to `machine_sync_ip` |
+| `pc_lan_ip` | Optional; middleware PC LAN IP (auto-filled by step 3) |
+| `pc_lan_static_enabled` | `true` = lock PC IP during `3-CONFIGURE_DEVICE.cmd` |
+
+**LAN IP during install (recommended):**
+
+Run **`3-CONFIGURE_DEVICE.cmd`** as Administrator after step 2. It will:
+
+1. **Option B (automatic):** set a Windows static IP on the adapter on the same subnet as the T501 (locks current IP if `pc_lan_ip` is empty)
+2. **Option A (guide only):** write `var\lan_setup\router_dhcp_reservation.txt` with MAC + IP for your router admin (routers cannot be configured from the PC app)
+3. Open firewall port 8081 and point the device live-push at this PC
+
+To skip Windows static IP: set `pc_lan_static_enabled: false` in `site.local.yaml`, or run `3-CONFIGURE_DEVICE.cmd` with `-SkipLanStatic` via PowerShell.
 
 **Cloudflare tunnel (one-time per site):**
 

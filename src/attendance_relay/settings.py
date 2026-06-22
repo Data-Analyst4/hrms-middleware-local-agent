@@ -92,6 +92,20 @@ class Settings(BaseModel):
     webhook_timeout_seconds: float = 10.0
     webhook_dispatch_batch_size: int = 50
 
+    site_name: str = ""
+
+    alerts_enabled: bool = False
+    alerts_provider: str = "webhook"
+    alerts_webhook_url: str = ""
+    alerts_recipient: str = ""
+    alerts_api_key: str = ""
+    alerts_api_secret: str = ""
+    alerts_from: str = ""
+    alerts_cooldown_seconds: int = 300
+    alerts_timeout_seconds: float = 15.0
+    alerts_cooldown_file: str = "var/alerts/last_sent.json"
+    alerts_events: list[str] = Field(default_factory=list)
+
     @model_validator(mode="after")
     def _enforce_transport_policy(self) -> "Settings":
         if not self.outbound_relay_enabled:

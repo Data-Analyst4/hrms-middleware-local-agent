@@ -27,6 +27,7 @@ var/
 *.log
 configs/integration.local.env
 configs/site.local.yaml
+configs/k95-vps-snippet.env
 
 # IDE/editor
 .vscode/

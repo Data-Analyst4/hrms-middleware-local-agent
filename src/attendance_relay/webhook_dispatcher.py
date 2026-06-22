@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from attendance_relay.alert_notifier import ALERT_EVENT_WEBHOOK_DEAD, send_alert
 from attendance_relay.middleware_repository import MiddlewareRepository
 from attendance_relay.settings import Settings
 
@@ -43,13 +44,22 @@ def dispatch_due_webhooks(*, settings: Settings, repo: MiddlewareRepository, lim
             target_url = str(row.get("target_url") or "").strip()
             if not target_url:
                 skipped += 1
-                repo.mark_webhook_failed(
+                if repo.mark_webhook_failed(
                     delivery_id=str(row["delivery_id"]),
                     current_attempt_no=int(row.get("attempt_no") or 0),
                     status_code=None,
                     error_message="target_url missing",
                     response_text=None,
-                )
+                ):
+                    dead += 1
+                    send_alert(
+                        settings,
+                        event=ALERT_EVENT_WEBHOOK_DEAD,
+                        title="Webhook delivery dead",
+                        message="A webhook delivery exhausted retries.",
+                        delivery_id=str(row.get("delivery_id") or ""),
+                        error="target_url missing",
+                    )
                 continue
 
             try:
@@ -63,24 +73,41 @@ def dispatch_due_webhooks(*, settings: Settings, repo: MiddlewareRepository, lim
                     )
                 else:
                     failed += 1
-                    repo.mark_webhook_failed(
+                    if repo.mark_webhook_failed(
                         delivery_id=str(row["delivery_id"]),
                         current_attempt_no=int(row.get("attempt_no") or 0),
                         status_code=response.status_code,
                         error_message=f"non_2xx_status={response.status_code}",
                         response_text=response.text[:2000],
-                    )
+                    ):
+                        dead += 1
+                        send_alert(
+                            settings,
+                            event=ALERT_EVENT_WEBHOOK_DEAD,
+                            title="Webhook delivery dead",
+                            message="A webhook delivery exhausted retries.",
+                            delivery_id=str(row.get("delivery_id") or ""),
+                            error=f"non_2xx_status={response.status_code}",
+                            status_code=response.status_code,
+                        )
             except Exception as exc:  # noqa: BLE001
                 failed += 1
-                repo.mark_webhook_failed(
+                if repo.mark_webhook_failed(
                     delivery_id=str(row["delivery_id"]),
                     current_attempt_no=int(row.get("attempt_no") or 0),
                     status_code=None,
                     error_message=f"{type(exc).__name__}: {exc}",
                     response_text=None,
-                )
+                ):
+                    dead += 1
+                    send_alert(
+                        settings,
+                        event=ALERT_EVENT_WEBHOOK_DEAD,
+                        title="Webhook delivery dead",
+                        message="A webhook delivery exhausted retries.",
+                        delivery_id=str(row.get("delivery_id") or ""),
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
 
-    # Dead count is derived from repository state after marking failures.
-    dead = len(repo.list_webhook_deliveries(status="DEAD", limit=limit))
     return {"picked": len(rows), "sent": sent, "failed": failed, "dead": dead, "skipped": skipped}
 

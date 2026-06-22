@@ -136,4 +136,21 @@ if ($restarted -and (Test-PublicTunnel)) {
 }
 
 Write-Log "Still unhealthy after restart (local=$localOk)."
+
+$pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
+$configAbs = Join-Path $projectRoot "configs\factory.yaml"
+if ((Test-Path $pythonExe) -and (Test-Path $configAbs)) {
+    try {
+        $ctx = @{ hostname = $PublicHostname; local_ok = $localOk; tunnel_mode = $TunnelMode } | ConvertTo-Json -Compress
+        & $pythonExe "scripts/send_alert.py" `
+            "--config" $configAbs `
+            "--event" "tunnel_unhealthy" `
+            "--title" "Cloudflare tunnel down" `
+            "--message" "Public tunnel https://$PublicHostname/health is unhealthy after restart. ERP cannot reach this site until fixed." `
+            "--context-json" $ctx | Out-Null
+    } catch {
+        Write-Log "Tunnel alert send failed: $($_.Exception.Message)"
+    }
+}
+
 exit 1

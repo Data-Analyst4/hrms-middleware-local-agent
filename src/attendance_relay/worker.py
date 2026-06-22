@@ -9,6 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from attendance_relay.logging_utils import configure_logging, log_event
+from attendance_relay.alert_notifier import (
+    ALERT_EVENT_OUTBOX_DEAD,
+    ALERT_EVENT_OUTBOX_FAILED_REPLAYED,
+    ALERT_EVENT_OUTBOX_SEND_FAILED,
+    ALERT_EVENT_WORKER_LOOP_ERROR,
+    ALERT_EVENT_WORKER_LOOP_ERROR_LIMIT,
+    send_alert,
+)
 from attendance_relay.outbound_client import OutboundClient
 from attendance_relay.repository import AttendanceRepository
 from attendance_relay.settings import Settings
@@ -47,9 +55,25 @@ class RelayWorker:
                         error=f"{type(exc).__name__}: {exc}",
                         loop_errors=loop_errors,
                     )
+                    send_alert(
+                        self.settings,
+                        event=ALERT_EVENT_WORKER_LOOP_ERROR,
+                        title="Worker loop error",
+                        message="Outbox worker raised an exception during processing.",
+                        loop_errors=loop_errors,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
                     if loop_errors >= self.settings.worker_max_loop_errors:
                         if self.settings.worker_fatal_on_max_loop_errors:
                             raise RuntimeError("worker exceeded maximum loop errors") from exc
+                        send_alert(
+                            self.settings,
+                            event=ALERT_EVENT_WORKER_LOOP_ERROR_LIMIT,
+                            title="Worker loop errors",
+                            message="Worker hit the loop error limit and is continuing.",
+                            loop_errors=loop_errors,
+                            error=f"{type(exc).__name__}: {exc}",
+                        )
                         log_event(
                             LOGGER,
                             "error",
@@ -104,6 +128,7 @@ class RelayWorker:
                 if attempt >= self.settings.max_retries
                 else current_now + timedelta(seconds=_compute_backoff_seconds(self.settings, attempt))
             )
+            is_final = attempt >= self.settings.max_retries or next_attempt is None
             self.repo.mark_failed(
                 outbox_id=row.id,
                 attempt_count=attempt,
@@ -124,6 +149,30 @@ class RelayWorker:
                 error=result.error,
                 status_code=result.status_code,
             )
+            if is_final:
+                send_alert(
+                    self.settings,
+                    event=ALERT_EVENT_OUTBOX_DEAD,
+                    title="Punch delivery failed permanently",
+                    message="An attendance punch could not be delivered to ERP after all retries.",
+                    outbox_id=row.id,
+                    employee_code=row.employee_code,
+                    attempt=attempt,
+                    error=result.error,
+                    status_code=result.status_code,
+                )
+            else:
+                send_alert(
+                    self.settings,
+                    event=ALERT_EVENT_OUTBOX_SEND_FAILED,
+                    title="Punch delivery failed (will retry)",
+                    message="ERP punch delivery failed; worker will retry with backoff.",
+                    outbox_id=row.id,
+                    employee_code=row.employee_code,
+                    attempt=attempt,
+                    error=result.error,
+                    status_code=result.status_code,
+                )
 
         self._write_health(last_processed=len(batch), sent=sent, failed=failed)
         return len(batch)
@@ -143,6 +192,13 @@ class RelayWorker:
         self._last_failed_replay_at = now
         if replayed:
             log_event(LOGGER, "warning", "outbox_failed_replayed", count=replayed)
+            send_alert(
+                self.settings,
+                event=ALERT_EVENT_OUTBOX_FAILED_REPLAYED,
+                title="Failed punches replayed",
+                message="Previously failed outbox rows were queued for another delivery attempt.",
+                count=replayed,
+            )
 
     def _build_outbound_payload(self, row: Any) -> dict[str, Any]:
         master = self.repo.find_employee_master(row.employee_code)

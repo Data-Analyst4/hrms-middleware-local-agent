@@ -1239,14 +1239,15 @@ class MiddlewareRepository:
         status_code: int | None,
         error_message: str,
         response_text: str | None,
-    ) -> None:
+    ) -> bool:
         now_utc_dt = _utc_now()
         now_utc = _utc_iso(now_utc_dt)
         next_attempt_no = int(current_attempt_no) + 1
         plan = _build_webhook_retry_plan(next_attempt_no, now_utc_dt)
+        is_dead = plan.status == "DEAD"
 
         with self.engine.begin() as conn:
-            if plan.status == "DEAD":
+            if is_dead:
                 conn.execute(
                     text(
                         """
@@ -1316,6 +1317,8 @@ class MiddlewareRepository:
                         "updated_at": now_utc,
                     },
                 )
+
+        return is_dead
 
     def force_retry_webhook(self, delivery_id: str) -> dict[str, Any]:
         now_utc = _utc_iso(_utc_now())

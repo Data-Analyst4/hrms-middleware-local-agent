@@ -105,18 +105,17 @@ function Show-SiteConfigChecklist {
     param([string]$ProjectRoot = (Get-ProjectRoot))
     $sitePath = Get-SiteLocalConfigPath -ProjectRoot $ProjectRoot
     Write-Host ""
-    Write-Host "Per-PC settings file: $sitePath" -ForegroundColor Cyan
-    Write-Host "Edit these before production use:" -ForegroundColor Yellow
-    Write-Host "  machine_sync_ip          - biometric device LAN IP"
-    Write-Host "  machine_sync_port        - device SDK port (usually 5005)"
-    Write-Host "  machine_sync_machine_number"
-    Write-Host "  outbound_site_code       - ERP branch/site code"
-    Write-Host "  outbound_device_id       - device id sent to ERP"
-    Write-Host "  outbound_url / outbound_api_key / outbound_hmac_secret"
-    Write-Host "  cloudflare_public_hostname - e.g. v8-mw.k95foods.com"
-    Write-Host "  middleware_api_key"
+    Write-Host "Per-site file (one PC = one machine): $sitePath" -ForegroundColor Cyan
+    Write-Host "Required per factory site:" -ForegroundColor Yellow
+    Write-Host "  outbound_site_code       - ERP branch code (V8, V9, ...)"
+    Write-Host "  outbound_device_id       - e.g. V8-T501-01 (auto from site code)"
+    Write-Host "  machine_sync_ip          - this site's biometric device IP"
+    Write-Host "  machine_sync_machine_number - device STN on that machine"
+    Write-Host "  middleware_api_key       - ERP -> this PC (unique per site)"
+    Write-Host "  outbound_hmac_secret     - this PC -> ERP punches (unique per site)"
+    Write-Host "  cloudflare_public_hostname - e.g. v8-mw.k95foods.com (unique per site)"
+    Write-Host "  pc_lan_ip                  - optional; auto-set by 3-CONFIGURE_DEVICE.cmd"
     Write-Host ""
-    Write-Host "Cloudflare credentials: copy .cloudflared folder from existing site PC"
-    Write-Host "  or run cloudflared tunnel login on this PC."
+    Write-Host "Run 1-CONFIGURE_SITE.cmd to generate keys + configs/k95-vps-snippet.env"
     Write-Host ""
 }

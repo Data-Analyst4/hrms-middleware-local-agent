@@ -10,6 +10,7 @@ echo This folder can be copied anywhere (USB, D:\Apps, etc.).
 echo.
 echo Step 1: Create/edit per-PC settings (site.local.yaml)
 echo Step 2: Install Python, middleware, tunnel autostart
+echo Step 3: Run 3-CONFIGURE_DEVICE.cmd as Admin (LAN IP + device live-push)
 echo.
 pause
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\configure_site.ps1"

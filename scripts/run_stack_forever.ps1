@@ -90,6 +90,29 @@ function Write-SupervisorHealth {
     ($payload | ConvertTo-Json -Compress) | Set-Content -Path $supervisorHealthFile -Encoding UTF8
 }
 
+function Send-SupervisorAlert {
+    param(
+        [string]$Event,
+        [string]$Title,
+        [string]$Message,
+        [hashtable]$Context = @{}
+    )
+    if (-not (Read-YamlBool -ConfigPath $configAbs -Key "alerts_enabled" -Default $false)) {
+        return
+    }
+    try {
+        $contextJson = ($Context | ConvertTo-Json -Compress)
+        & $pythonExe "scripts/send_alert.py" `
+            "--config" $configAbs `
+            "--event" $Event `
+            "--title" $Title `
+            "--message" $Message `
+            "--context-json" $contextJson | Out-Null
+    } catch {
+        Write-Log "Alert send failed: $($_.Exception.Message)"
+    }
+}
+
 function Wait-NetworkReady {
     param([int]$MaxWaitSeconds)
     if ($MaxWaitSeconds -le 0) { return }
@@ -220,18 +243,21 @@ try {
     while ($true) {
         if ($gateway.HasExited) {
             Write-Log "Gateway exited code=$($gateway.ExitCode). Restarting..."
+            Send-SupervisorAlert -Event "process_restart" -Title "Gateway restarted" -Message "Gateway process exited and was restarted by supervisor." -Context @{ process = "gateway"; exit_code = $gateway.ExitCode }
             Start-Sleep -Seconds 2
             $gateway = Start-ManagedProcess -Name "gateway" -ScriptPath "scripts/run_gateway.py" -ConfigPath $configAbs
         }
 
         if ($outboundEnabled -and $null -ne $worker -and $worker.HasExited) {
             Write-Log "Worker exited code=$($worker.ExitCode). Restarting..."
+            Send-SupervisorAlert -Event "process_restart" -Title "Worker restarted" -Message "Outbox worker exited and was restarted by supervisor." -Context @{ process = "worker"; exit_code = $worker.ExitCode }
             Start-Sleep -Seconds 2
             $worker = Start-ManagedProcess -Name "worker" -ScriptPath "scripts/run_worker.py" -ConfigPath $configAbs
         }
 
         if ($fkListener.HasExited) {
             Write-Log "FK listener exited code=$($fkListener.ExitCode). Restarting..."
+            Send-SupervisorAlert -Event "process_restart" -Title "FK listener restarted" -Message "FK web listener exited and was restarted by supervisor." -Context @{ process = "fk-listener"; exit_code = $fkListener.ExitCode }
             Start-Sleep -Seconds 2
             $fkListener = Start-ManagedProcess -Name "fk-listener" -ScriptPath "scripts/run_fk_web_listener.py" -ConfigPath $configAbs
         }
@@ -239,6 +265,7 @@ try {
         if ((Get-Date) -ge $nextLiveness) {
             if (-not (Test-GatewayHealth -Port $ingressPort -TimeoutSec $GatewayLivenessTimeoutSeconds)) {
                 Write-Log "Liveness: gateway unhealthy on :$ingressPort - restarting."
+                Send-SupervisorAlert -Event "gateway_unhealthy" -Title "Gateway unhealthy" -Message "Gateway failed /health check and was restarted." -Context @{ process = "gateway"; port = $ingressPort }
                 Stop-ManagedProcess -Proc $gateway
                 Start-Sleep -Seconds 2
                 $gateway = Start-ManagedProcess -Name "gateway" -ScriptPath "scripts/run_gateway.py" -ConfigPath $configAbs
@@ -246,16 +273,19 @@ try {
 
             if (-not (Test-TcpPortOpen -Port $fkPort)) {
                 Write-Log "Liveness: FK listener port :$fkPort closed - restarting."
+                Send-SupervisorAlert -Event "process_restart" -Title "FK listener port closed" -Message "FK listener TCP port was closed; process restarted." -Context @{ process = "fk-listener"; port = $fkPort }
                 Stop-ManagedProcess -Proc $fkListener
                 Start-Sleep -Seconds 2
                 $fkListener = Start-ManagedProcess -Name "fk-listener" -ScriptPath "scripts/run_fk_web_listener.py" -ConfigPath $configAbs
             } elseif (-not (Test-HealthFileFresh -Path $fkHealthFile -MaxAgeSeconds $FkHealthStaleSeconds)) {
                 Write-Log "Liveness: FK health stale (no recent device traffic on :$fkPort). Check device push target."
+                Send-SupervisorAlert -Event "fk_health_stale" -Title "No recent device punches" -Message "FK listener is up but no recent punch traffic was recorded. Check machine push URL/IP." -Context @{ process = "fk-listener"; port = $fkPort }
             }
 
             if ($outboundEnabled -and $null -ne $worker -and -not $worker.HasExited) {
                 if (-not (Test-HealthFileFresh -Path $workerHealthFile -MaxAgeSeconds $WorkerHealthStaleSeconds)) {
                     Write-Log "Liveness: worker health stale - restarting worker."
+                    Send-SupervisorAlert -Event "worker_health_stale" -Title "Worker health stale" -Message "Outbox worker health file is stale; supervisor restarted the worker." -Context @{ process = "worker" }
                     Stop-ManagedProcess -Proc $worker
                     Start-Sleep -Seconds 2
                     $worker = Start-ManagedProcess -Name "worker" -ScriptPath "scripts/run_worker.py" -ConfigPath $configAbs
@@ -275,9 +305,11 @@ try {
                 $healOutput = & $pythonExe "scripts/ensure_device_live_push.py" "--config" $configAbs "--fix" "--quiet" 2>&1
                 if ($LASTEXITCODE -ne 0) {
                     Write-Log "Live push heal exit=$LASTEXITCODE output=$healOutput"
+                    Send-SupervisorAlert -Event "live_push_heal_failed" -Title "Live push heal failed" -Message "ensure_device_live_push.py returned a non-zero exit code." -Context @{ exit_code = $LASTEXITCODE; output = ($healOutput | Out-String).Trim() }
                 }
             } catch {
                 Write-Log "Live push heal failed: $($_.Exception.Message)"
+                Send-SupervisorAlert -Event "live_push_heal_failed" -Title "Live push heal failed" -Message $_.Exception.Message -Context @{ process = "ensure_device_live_push.py" }
             }
             $nextLivePushHeal = (Get-Date).AddSeconds($LivePushHealIntervalSeconds)
         }
@@ -287,6 +319,7 @@ try {
                 & $pythonExe "scripts/run_webhook_dispatch.py" "--config" $configAbs | Out-Null
             } catch {
                 Write-Log "Webhook dispatch run failed: $($_.Exception.Message)"
+                Send-SupervisorAlert -Event "webhook_dispatch_failed" -Title "Webhook dispatch failed" -Message $_.Exception.Message -Context @{ process = "run_webhook_dispatch.py" }
             }
             $nextWebhook = (Get-Date).AddSeconds($WebhookIntervalSeconds)
         }
@@ -296,9 +329,11 @@ try {
                 $pullOutput = & $pythonExe "scripts/pull_device_logs_to_db.py" "--config" $configAbs "--incremental" "--limit" "200" 2>&1
                 if ($LASTEXITCODE -ne 0) {
                     Write-Log "Device log pull exit=$LASTEXITCODE output=$pullOutput"
+                    Send-SupervisorAlert -Event "device_pull_failed" -Title "Device log pull failed" -Message "pull_device_logs_to_db.py returned a non-zero exit code." -Context @{ exit_code = $LASTEXITCODE; output = ($pullOutput | Out-String).Trim() }
                 }
             } catch {
                 Write-Log "Device log pull failed: $($_.Exception.Message)"
+                Send-SupervisorAlert -Event "device_pull_failed" -Title "Device log pull failed" -Message $_.Exception.Message -Context @{ process = "pull_device_logs_to_db.py" }
             }
             $nextDevicePull = (Get-Date).AddSeconds($DevicePullIntervalSeconds)
         }

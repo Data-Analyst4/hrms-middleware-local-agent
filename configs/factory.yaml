@@ -61,6 +61,12 @@ machine_sync_group_no: 1
 webhook_timeout_seconds: 10.0
 webhook_dispatch_batch_size: 50
 
+# Failure alerts (WhatsApp / Telegram / custom webhook). Per-PC overrides in site.local.yaml.
+alerts_enabled: false
+alerts_provider: "webhook"
+alerts_cooldown_seconds: 300
+alerts_timeout_seconds: 15.0
+
 # Defaults below are overridden by configs/site.local.yaml on each PC.
 outbound_url: "https://dev.erp.k95foods.com/api/integrations/middleware/punch"
 outbound_api_key_header: "x-api-key"

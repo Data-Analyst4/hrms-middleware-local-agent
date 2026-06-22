@@ -1,8 +1,9 @@
-# Firewall + device live-push target (reads IP from site.local.yaml).
+# LAN static IP + firewall + device live-push target (reads IP from site.local.yaml).
 param(
     [int]$Port = 8081,
     [string]$DeviceIp = "",
-    [string]$Config = "configs/factory.yaml"
+    [string]$Config = "configs/factory.yaml",
+    [switch]$SkipLanStatic
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +22,18 @@ if (-not $DeviceIp) {
 
 if (-not (Test-IsAdmin)) {
     throw "Run as Administrator."
+}
+
+if (-not $SkipLanStatic) {
+    Write-Host ""
+    Write-Host "Step 1/2: Lock middleware PC LAN IP (Windows static IP)..." -ForegroundColor Cyan
+    $lanScript = Join-Path $PSScriptRoot "configure_lan_static_ip.ps1"
+    & $lanScript -SkipIfAlreadyStatic
+    if ($LASTEXITCODE -gt 1) {
+        throw "LAN static IP setup failed. Fix network connectivity, then re-run 3-CONFIGURE_DEVICE.cmd"
+    }
+    Write-Host ""
+    Write-Host "Step 2/2: Firewall + device live-push..." -ForegroundColor Cyan
 }
 
 $ruleNames = @("HR Module FK Web 8081", "HRMS-FK-Web-Listener-8081")
