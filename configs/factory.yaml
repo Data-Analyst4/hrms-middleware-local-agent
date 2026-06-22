@@ -1,0 +1,79 @@
+# Factory base config (same on all site PCs).
+# Per-PC values: edit configs/site.local.yaml (see site.local.yaml.example).
+env: "prod"
+log_level: "INFO"
+tz_name: "Asia/Calcutta"
+
+ingress_host: "0.0.0.0"
+ingress_port: 8080
+ingress_path: "/machine/realtime_glog"
+expected_request_code: "realtime_glog"
+
+direct_listener_host: "0.0.0.0"
+direct_listener_port: 8010
+direct_listener_path: "/machine/realtime_glog"
+direct_listener_jsonl_path: "var/direct_listener/punches.jsonl"
+
+fk_web_listener_host: "0.0.0.0"
+fk_web_listener_port: 8081
+
+db_url: "sqlite:///attendance.db"
+db_echo: false
+db_pool_pre_ping: true
+
+outbox_batch_size: 100
+outbox_poll_seconds: 1.0
+processing_lease_seconds: 120
+stale_processing_seconds: 300
+max_retries: 8
+backoff_base_seconds: 2.0
+backoff_max_seconds: 120.0
+backoff_jitter_seconds: 1.0
+
+outbound_relay_enabled: true
+outbound_timeout_seconds: 20.0
+outbound_verify_tls: true
+outbound_method: "POST"
+enforce_https: true
+enforce_post: true
+outbound_include_extended_fields: true
+outbound_http_retries: 2
+
+failed_outbox_replay_enabled: true
+failed_outbox_replay_interval_seconds: 3600
+failed_outbox_replay_batch_size: 50
+
+worker_health_file: "var/worker/health.json"
+worker_max_loop_errors: 100
+worker_fatal_on_max_loop_errors: false
+
+live_push_auto_heal_enabled: true
+live_push_heal_interval_seconds: 900
+
+fk_health_file: "var/fk_listener/health.json"
+supervisor_health_file: "var/supervisor/health.json"
+network_ready_max_wait_seconds: 120
+
+machine_sync_timezone1: 1
+machine_sync_timezone2: 0
+machine_sync_group_no: 1
+
+webhook_timeout_seconds: 10.0
+webhook_dispatch_batch_size: 50
+
+# Defaults below are overridden by configs/site.local.yaml on each PC.
+outbound_url: "https://dev.erp.k95foods.com/api/integrations/middleware/punch"
+outbound_api_key_header: "x-api-key"
+outbound_api_key: "change-me-k95-webhook-key"
+outbound_hmac_secret: "change-me-v8-webhook-hmac"
+outbound_site_code: "V8"
+outbound_device_id: "V8-T501-01"
+machine_sdk_dll_path: "sdk_extracted/20211204-SBXPC-1/bin/SBXPCDLL64.dll"
+machine_sync_ip: "192.168.1.100"
+machine_sync_port: 5005
+machine_sync_password: 0
+machine_sync_machine_number: 1
+middleware_api_key: "change-me-middleware-key"
+agent_api_key: "change-me-agent-key"
+agent_jwt_token: "change-me-agent-jwt"
+webhook_hmac_secret: "change-me-webhook-secret"

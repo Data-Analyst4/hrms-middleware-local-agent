@@ -1,0 +1,44 @@
+# =============================================================================
+# PER-PC SETTINGS (copy to site.local.yaml and edit on each factory/site PC)
+# =============================================================================
+# This file is merged on top of configs/factory.yaml at runtime.
+# Paths below are relative to the project folder unless noted.
+# Works on Windows 10 and 11. Folder can live anywhere (e.g. D:\HRMS, C:\Apps\HR Module).
+#
+# Quick setup:
+#   1) Double-click 1-CONFIGURE_SITE.cmd
+#   2) Double-click 2-INSTALL_FACTORY.cmd (or SETUP_NEW_PC.cmd for both steps)
+# =============================================================================
+
+# --- Site identity ---
+site_name: "Factory Gate PC 1"
+outbound_site_code: "V8"
+outbound_device_id: "V8-T501-01"
+
+# --- Biometric device (LAN) ---
+machine_sync_ip: "192.168.1.100"
+machine_sync_port: 5005
+machine_sync_password: 0
+machine_sync_machine_number: 1
+
+# SDK DLL path relative to project folder (ship sdk_extracted with the folder copy)
+machine_sdk_dll_path: "sdk_extracted/20211204-SBXPC-1/bin/SBXPCDLL64.dll"
+
+# --- ERP outbound punch relay ---
+outbound_url: "https://dev.erp.k95foods.com/api/integrations/middleware/punch"
+outbound_api_key: "change-me-k95-webhook-key"
+outbound_hmac_secret: "change-me-v8-webhook-hmac"
+
+# --- API security (change from defaults) ---
+middleware_api_key: "change-me-middleware-key"
+agent_api_key: "change-me-agent-key"
+webhook_hmac_secret: "change-me-webhook-secret"
+
+# --- Cloudflare tunnel (ERP calls this PC) ---
+# Hostname only (no https://). Copy .cloudflared from another site PC or run tunnel login.
+cloudflare_public_hostname: "v8-mw.k95foods.com"
+cloudflare_tunnel_name: "v8-middleware"
+cloudflare_local_port: 8080
+
+# --- Optional: firewall helper uses device IP for live-push port 8081 ---
+device_lan_ip_for_firewall: ""
