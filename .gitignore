@@ -46,9 +46,6 @@ Thumbs.db
 *.tar
 *.gz
 
-# Vendor SDK bundles (keep out of git)
-sdk_extracted/
-
 # Local vendor clone / stray images
 toyogt-HRMS-develop/
 *.jpeg
