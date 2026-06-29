@@ -28,7 +28,20 @@ function Invoke-Cloudflared {
 function Get-CloudflaredTunnelJson {
     $text = (Invoke-Cloudflared -Arguments @("tunnel", "list", "--output", "json") | Out-String).Trim()
     if (-not $text) { return @() }
-    return @($text | ConvertFrom-Json)
+    $parsed = $text | ConvertFrom-Json
+    if ($null -eq $parsed) { return @() }
+    if ($parsed -is [System.Array]) { return @($parsed) }
+    return @($parsed)
+}
+
+function Get-CloudflaredTunnelByName {
+    param([string]$Name)
+    $matches = @(Get-CloudflaredTunnelJson | Where-Object { $_.name -eq $Name })
+    if ($matches.Count -gt 1) {
+        Write-Host "WARNING: $($matches.Count) tunnels named '$Name' found; using newest (last created)." -ForegroundColor Yellow
+        Write-Host "  Clean up duplicates later in Cloudflare Zero Trust dashboard." -ForegroundColor DarkGray
+    }
+    return $matches | Select-Object -Last 1
 }
 
 if (-not (Test-Path $ConfigDir)) {
@@ -43,7 +56,7 @@ if (-not (Test-Path $certPath)) {
     exit 1
 }
 
-$existing = Get-CloudflaredTunnelJson | Where-Object { $_.name -eq $TunnelName } | Select-Object -First 1
+$existing = Get-CloudflaredTunnelByName -Name $TunnelName
 if ($existing) {
     Write-Host "Tunnel '$TunnelName' already exists (id=$($existing.id))." -ForegroundColor Yellow
 } else {
@@ -51,7 +64,8 @@ if ($existing) {
     Invoke-Cloudflared -Arguments @("tunnel", "create", $TunnelName) | Out-Host
 }
 
-$TunnelId = (Get-CloudflaredTunnelJson | Where-Object { $_.name -eq $TunnelName } | Select-Object -First 1).id
+$tunnelRow = Get-CloudflaredTunnelByName -Name $TunnelName
+$TunnelId = $tunnelRow.id
 if (-not $TunnelId) {
     throw "Could not resolve tunnel id for $TunnelName"
 }

@@ -342,11 +342,24 @@ function Install-ProgramDataConfig {
     $lines = Get-Content $SourceConfigPath
     $tunnelId = ($lines | Where-Object { $_ -match '^\s*tunnel:\s*' } | Select-Object -First 1) -replace '^\s*tunnel:\s*', ''
     $tunnelId = $tunnelId.Trim()
-    if (-not $tunnelId) {
+    # Config may list multiple UUIDs if tunnel was created repeatedly — use first credentials file that exists.
+    $tunnelCandidates = @($tunnelId -split '\s+' | Where-Object { $_ -match '^[0-9a-fA-F-]{36}$' })
+    if ($tunnelCandidates.Count -eq 0) {
         throw "Could not read tunnel id from $SourceConfigPath"
     }
-
-    $userCred = Join-Path $env:USERPROFILE ".cloudflared\$tunnelId.json"
+    $userCred = $null
+    foreach ($candidate in $tunnelCandidates) {
+        $path = Join-Path $env:USERPROFILE ".cloudflared\$candidate.json"
+        if (Test-Path $path) {
+            $tunnelId = $candidate
+            $userCred = $path
+            break
+        }
+    }
+    if (-not $userCred) {
+        $tunnelId = $tunnelCandidates[0]
+        $userCred = Join-Path $env:USERPROFILE ".cloudflared\$tunnelId.json"
+    }
     if (-not (Test-Path $userCred)) {
         throw "Missing credentials file: $userCred"
     }
