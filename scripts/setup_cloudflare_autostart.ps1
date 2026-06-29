@@ -1,15 +1,15 @@
-# Install Cloudflare tunnel (v8-mw.k95foods.com) to auto-start on boot and recover after crashes.
+# Install Cloudflare tunnel to auto-start on boot and recover after crashes.
+# Reads tunnel name/hostname from configs/site.local.yaml when not passed.
 # Run as Administrator:
-#   cd "C:\Users\DELL\HR Module"
 #   .\scripts\setup_cloudflare_autostart.ps1 -StartNow
 
 param(
-    [string]$TunnelName = "v8-middleware",
-    [string]$PublicHostname = "v8-mw.k95foods.com",
-    [int]$LocalPort = 8080,
-    [string]$SourceConfig = "$env:USERPROFILE\.cloudflared\config-v8-middleware.yml",
+    [string]$TunnelName = "",
+    [string]$PublicHostname = "",
+    [int]$LocalPort = 0,
+    [string]$SourceConfig = "",
     [string]$ServiceName = "cloudflared",
-    [string]$WatchdogTaskName = "V8-Cloudflare-Tunnel-Watchdog",
+    [string]$WatchdogTaskName = "",
     [int]$BootDelaySeconds = 45,
     [switch]$StartNow,
     [switch]$SkipService,
@@ -17,7 +17,28 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "lib\project_paths.ps1")
 . (Join-Path $PSScriptRoot "lib\cloudflared_windows.ps1")
+
+$projectRoot = Get-ProjectRoot -ScriptRoot $PSScriptRoot
+$siteCode = ((Read-SiteYamlValue -Key "outbound_site_code" -ProjectRoot $projectRoot -Default "SITE") -replace '\s', '').ToUpperInvariant()
+
+if (-not $TunnelName) {
+    $TunnelName = Read-SiteYamlValue -Key "cloudflare_tunnel_name" -Default "v8-middleware" -ProjectRoot $projectRoot
+}
+if (-not $PublicHostname) {
+    $PublicHostname = Read-SiteYamlValue -Key "cloudflare_public_hostname" -Default "v8-mw.k95foods.com" -ProjectRoot $projectRoot
+    $PublicHostname = $PublicHostname -replace '^https?://', '' -replace '/.*$', ''
+}
+if ($LocalPort -le 0) {
+    $LocalPort = [int](Read-SiteYamlValue -Key "cloudflare_local_port" -Default "8080" -ProjectRoot $projectRoot)
+}
+if (-not $SourceConfig) {
+    $SourceConfig = Join-Path $env:USERPROFILE ".cloudflared\config-$TunnelName.yml"
+}
+if (-not $WatchdogTaskName) {
+    $WatchdogTaskName = "$siteCode-Cloudflare-Tunnel-Watchdog"
+}
 
 function Invoke-CloudflaredNative {
     param(
@@ -357,7 +378,7 @@ if (-not (Test-IsAdmin)) {
     throw "Run this script as Administrator (right-click PowerShell -> Run as administrator)."
 }
 
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$projectRoot = Get-ProjectRoot -ScriptRoot $PSScriptRoot
 $cloudflaredExe = Find-CloudflaredExe
 $script:CloudflaredExeForService = $cloudflaredExe
 $logDir = Join-Path $projectRoot "var\logs"
@@ -371,7 +392,7 @@ Write-Host "Deployed config: $($deployed.ConfigPath)" -ForegroundColor Green
 
 Stop-ManualCloudflared
 
-$runnerTaskName = "V8-Cloudflare-Tunnel-Runner"
+$runnerTaskName = "$siteCode-Cloudflare-Tunnel-Runner"
 $tunnelMode = "service"
 $modeFile = Join-Path $projectRoot "var\logs\cloudflared-mode.txt"
 

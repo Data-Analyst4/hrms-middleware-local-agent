@@ -44,7 +44,7 @@ function Install-CloudflaredPackage {
 }
 
 function Test-TunnelCredentialsPresent {
-    $userConfig = Join-Path $env:USERPROFILE ".cloudflared\config-v8-middleware.yml"
+    $userConfig = Join-Path $env:USERPROFILE ".cloudflared\config-$TunnelName.yml"
     if (Test-Path $userConfig) { return $true }
     $cert = Join-Path $env:USERPROFILE ".cloudflared\cert.pem"
     return (Test-Path $cert)
@@ -64,7 +64,7 @@ After install, on a factory PC either:
     return
 }
 
-$userConfig = Join-Path $env:USERPROFILE ".cloudflared\config-v8-middleware.yml"
+$userConfig = Join-Path $env:USERPROFILE ".cloudflared\config-$TunnelName.yml"
 if (-not (Test-Path $userConfig)) {
     $setupTunnel = Join-Path $projectRoot "scripts\setup_cloudflare_tunnel.ps1"
     if (Test-Path $setupTunnel) {
