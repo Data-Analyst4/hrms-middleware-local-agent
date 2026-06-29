@@ -50,7 +50,7 @@ Set-Location $projectRoot
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " HRMS Middleware — Deploy New Site PC" -ForegroundColor Cyan
+Write-Host " HRMS Middleware - Deploy New Site PC" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Folder:  $projectRoot"
 Write-Host "Windows: $([System.Environment]::OSVersion.VersionString)"
@@ -60,12 +60,19 @@ Write-Host ""
 Write-Host "[1/5] Stopping old processes and re-registering autostart paths..." -ForegroundColor Yellow
 & (Join-Path $projectRoot "scripts\stop_stack.ps1") | Out-Host
 
-foreach ($task in @("HRMS-Middleware-Supervisor", "V8-Cloudflare-Tunnel-Watchdog", "V8-Cloudflare-Tunnel-Runner")) {
+foreach ($task in @("HRMS-Middleware-Supervisor", "V8-Cloudflare-Tunnel-Watchdog", "V8-Cloudflare-Tunnel-Runner", "1299-Cloudflare-Tunnel-Watchdog", "1299-Cloudflare-Tunnel-Runner")) {
     if (Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName $task -Confirm:$false
         Write-Host "  Removed old task: $task" -ForegroundColor Gray
     }
 }
+# Any other site tunnel tasks from prior installs
+Get-ScheduledTask -ErrorAction SilentlyContinue |
+    Where-Object { $_.TaskName -like '*-Cloudflare-Tunnel-Watchdog' -or $_.TaskName -like '*-Cloudflare-Tunnel-Runner' } |
+    ForEach-Object {
+        Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false
+        Write-Host "  Removed old task: $($_.TaskName)" -ForegroundColor Gray
+    }
 
 # --- 2) Per-site config + keys ---
 if (-not $SkipConfigure) {
@@ -120,8 +127,8 @@ Write-Host "============================================================" -Foreg
 Write-Host " Deploy complete" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Send to K95 DevOps: configs\k95-vps-snippet.env"
-Write-Host "Verify punches:     .\.venv\Scripts\python.exe scripts\_probe_erp_punch.py"
+Write-Host 'Send to K95 DevOps: configs\k95-vps-snippet.env'
+Write-Host 'Verify punches:     .\.venv\Scripts\python.exe scripts\_probe_erp_punch.py'
 Write-Host "Verify tunnel:      curl.exe -s https://$(Read-SiteYamlValue -Key 'cloudflare_public_hostname' -ProjectRoot $projectRoot)/health"
 Write-Host ""
 Write-Host "Resilience (automatic):" -ForegroundColor Cyan
@@ -132,5 +139,5 @@ Write-Host "  PC reboot                  -> scheduled tasks start stack + tunnel
 Write-Host "  ERP punch failure          -> outbox retries + hourly FAILED replay"
 Write-Host ""
 Write-Host "Recommended: DHCP reservation for this PC + biometric device on router."
-Write-Host "Docs: docs\MULTI_SITE_CONFIG.md  docs\PRODUCTION_RESILIENCE.md"
+Write-Host 'Docs: docs/MULTI_SITE_CONFIG.md  docs/PRODUCTION_RESILIENCE.md'
 Write-Host ""
