@@ -1,5 +1,5 @@
 param(
-    [string]$Config = "configs/dev.yaml",
+    [string]$Config = "configs/factory.yaml",
     [string]$TaskName = "HRMS-Middleware-Supervisor"
 )
 
@@ -22,5 +22,6 @@ if ($task) {
     Write-Host "Started supervisor manually (no scheduled task found)." -ForegroundColor Yellow
 }
 
-Start-Sleep -Seconds 5
+Write-Host "Waiting 30s for supervisor startup delay + gateway..." -ForegroundColor Gray
+Start-Sleep -Seconds 30
 & (Join-Path $PSScriptRoot "check_stack_status.ps1") -Config $Config -TaskName $TaskName
