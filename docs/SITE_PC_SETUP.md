@@ -22,6 +22,7 @@ Do **not** depend on `C:\Users\YourName\...` — all scripts resolve paths from 
 | **Optional step 3** | `3-CONFIGURE_DEVICE.cmd` | **Lock PC LAN IP** + firewall + device live-push (Admin) |
 | **Optional step 3b** | `4-CONFIGURE_LAN_IP.cmd` | LAN static IP only (Admin) |
 | **Check** | `CHECK_STATUS.cmd` | Health check |
+| **Router / LAN IP change** | `RECOVER_AFTER_NETWORK_CHANGE.cmd` | Reconnect PC to attendance machine — see [ROUTER_AND_LAN_IP_RECOVERY.md](ROUTER_AND_LAN_IP_RECOVERY.md) |
 | **After moving folder** | `REPAIR_AUTOSTART.cmd` | Re-register tasks with new path (Admin) |
 
 ---

@@ -12,6 +12,8 @@ Each site has **its own keys**. Never reuse `middleware_api_key` or `outbound_hm
 
 ## Setup a new site (factory PC)
 
+**Full guide (mistakes + V8 example):** [CLEAN_INSTALL_FACTORY_PC.md](CLEAN_INSTALL_FACTORY_PC.md)
+
 **One script (recommended):**
 
 ```text

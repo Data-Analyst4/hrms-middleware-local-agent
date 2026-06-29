@@ -47,11 +47,27 @@ function Get-AdapterNetworkSnapshot {
     $iface = Get-NetIPInterface -InterfaceIndex $InterfaceIndex -AddressFamily IPv4
     $gateway = (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -InterfaceIndex $InterfaceIndex -ErrorAction SilentlyContinue |
         Sort-Object RouteMetric | Select-Object -First 1).NextHop
+    if (-not $gateway) {
+        $gateway = (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
+            Sort-Object RouteMetric | Select-Object -First 1).NextHop
+    }
     $dns = @(Get-DnsClientServerAddress -InterfaceIndex $InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty ServerAddresses)
     if ($dns.Count -eq 0) { $dns = @('8.8.8.8') }
 
-    $adapter = Get-NetAdapter -InterfaceIndex $InterfaceIndex
+    $adapter = Get-NetAdapter -InterfaceIndex $InterfaceIndex -ErrorAction SilentlyContinue
+    if (-not $adapter) {
+        throw "Network adapter (index $InterfaceIndex) not found. Run ipconfig and reconnect Wi-Fi/Ethernet."
+    }
+    if (-not $gateway -and $ip.IPAddress) {
+        $octets = $ip.IPAddress.Trim().Split('.')
+        if ($octets.Count -eq 4) {
+            $guess = "$($octets[0]).$($octets[1]).$($octets[2]).1"
+            Write-Host "WARNING: No default gateway on '$($adapter.Name)'; assuming router $guess" -ForegroundColor Yellow
+            Write-Host "  If wrong, set gateway manually in Windows IP settings, then re-run." -ForegroundColor DarkGray
+            $gateway = $guess
+        }
+    }
     $profile = Get-NetConnectionProfile -InterfaceIndex $InterfaceIndex -ErrorAction SilentlyContinue
 
     return [PSCustomObject]@{

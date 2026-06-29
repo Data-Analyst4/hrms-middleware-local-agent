@@ -24,6 +24,12 @@ if (-not (Test-IsAdmin)) {
     throw "Run as Administrator."
 }
 
+$lanStaticEnabled = Read-SiteYamlValue -Key "pc_lan_static_enabled" -ProjectRoot $projectRoot -Default "true"
+if ($lanStaticEnabled -match '^(false|no|0)$') {
+    $SkipLanStatic = $true
+    Write-Host "pc_lan_static_enabled=false — skipping LAN static IP step." -ForegroundColor Yellow
+}
+
 if (-not $SkipLanStatic) {
     Write-Host ""
     Write-Host "Step 1/2: Lock middleware PC LAN IP (Windows static IP)..." -ForegroundColor Cyan
