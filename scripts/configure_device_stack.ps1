@@ -28,6 +28,9 @@ if (-not $SkipLanStatic) {
     Write-Host ""
     Write-Host "Step 1/2: Lock middleware PC LAN IP (Windows static IP)..." -ForegroundColor Cyan
     $lanScript = Join-Path $PSScriptRoot "configure_lan_static_ip.ps1"
+    if (-not (Get-Command Set-AdapterStaticIp -ErrorAction SilentlyContinue)) {
+        . (Join-Path $PSScriptRoot "lib\lan_network.ps1")
+    }
     & $lanScript -SkipIfAlreadyStatic
     if ($LASTEXITCODE -gt 1) {
         throw "LAN static IP setup failed. Fix network connectivity, then re-run 3-CONFIGURE_DEVICE.cmd"
