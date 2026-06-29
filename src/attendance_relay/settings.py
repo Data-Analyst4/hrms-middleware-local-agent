@@ -95,7 +95,9 @@ class Settings(BaseModel):
     site_name: str = ""
 
     alerts_enabled: bool = False
-    alerts_provider: str = "webhook"
+    alerts_provider: str = "k95_erp"
+    alerts_fallback_provider: str = "ntfy"
+    alerts_erp_url: str = ""
     alerts_webhook_url: str = ""
     alerts_recipient: str = ""
     alerts_api_key: str = ""
@@ -140,11 +142,22 @@ def _env_overrides() -> dict[str, Any]:
     return overrides
 
 
+def _merge_config(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+  merged = dict(base)
+  for key, value in overlay.items():
+    if value is None:
+      continue
+    if isinstance(value, str) and not value.strip():
+      continue
+    merged[key] = value
+  return merged
+
+
 def load_settings(config_path: str | None = None) -> Settings:
     raw_path = config_path or os.getenv(f"{ENV_PREFIX}CONFIG") or str(DEFAULT_CONFIG_PATH)
     path = Path(raw_path)
     merged = _read_yaml(path)
     # Per-PC overrides: configs/site.local.yaml (same folder as factory.yaml / dev.yaml).
-    merged.update(_read_yaml(path.resolve().parent / "site.local.yaml"))
-    merged.update(_env_overrides())
+    merged = _merge_config(merged, _read_yaml(path.resolve().parent / "site.local.yaml"))
+    merged = _merge_config(merged, _env_overrides())
     return Settings.model_validate(merged)

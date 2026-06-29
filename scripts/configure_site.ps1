@@ -99,6 +99,17 @@ Set-YamlScalar -ConfigPath $sitePath -Key "device_lan_ip_for_firewall" -Value $M
 Set-YamlScalar -ConfigPath $sitePath -Key "middleware_api_key" -Value $middlewareKey
 Set-YamlScalar -ConfigPath $sitePath -Key "outbound_hmac_secret" -Value $webhookSecret
 Set-YamlScalar -ConfigPath $sitePath -Key "outbound_url" -Value $punchUrl
+$factoryPath = Get-FactoryConfigPath -ProjectRoot $projectRoot
+$outboundApiKey = Read-YamlScalar -ConfigPath $sitePath -Key "outbound_api_key" -Default ""
+if (Test-SitePlaceholderValue $outboundApiKey) {
+    $factoryApiKey = Read-YamlScalar -ConfigPath $factoryPath -Key "outbound_api_key" -Default ""
+    if ($factoryApiKey -and -not (Test-SitePlaceholderValue $factoryApiKey)) {
+        Set-YamlScalar -ConfigPath $sitePath -Key "outbound_api_key" -Value $factoryApiKey
+        Write-Host "Set outbound_api_key from factory.yaml (ERP punch API key)." -ForegroundColor Gray
+    } else {
+        Write-Host "WARNING: Ask DevOps for K95 outbound_api_key and add to site.local.yaml." -ForegroundColor Yellow
+    }
+}
 Set-YamlScalar -ConfigPath $sitePath -Key "cloudflare_public_hostname" -Value $tunnelHost
 Set-YamlScalar -ConfigPath $sitePath -Key "cloudflare_tunnel_name" -Value $tunnelName
 
