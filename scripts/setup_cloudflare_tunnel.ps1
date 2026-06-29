@@ -10,6 +10,27 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Invoke-Cloudflared {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    # cloudflared logs warnings to stderr; PowerShell must not treat them as fatal errors.
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $lines = @(& cloudflared @Arguments 2>&1)
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    return @($lines | Where-Object {
+        $_ -is [string] -and $_.Trim() -and $_ -notmatch '^\{"level":"warn"'
+    })
+}
+
+function Get-CloudflaredTunnelJson {
+    $text = (Invoke-Cloudflared -Arguments @("tunnel", "list", "--output", "json") | Out-String).Trim()
+    if (-not $text) { return @() }
+    return @($text | ConvertFrom-Json)
+}
+
 if (-not (Test-Path $ConfigDir)) {
     New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
 }
@@ -22,15 +43,15 @@ if (-not (Test-Path $certPath)) {
     exit 1
 }
 
-$existing = cloudflared tunnel list --output json 2>$null | ConvertFrom-Json | Where-Object { $_.name -eq $TunnelName } | Select-Object -First 1
+$existing = Get-CloudflaredTunnelJson | Where-Object { $_.name -eq $TunnelName } | Select-Object -First 1
 if ($existing) {
     Write-Host "Tunnel '$TunnelName' already exists (id=$($existing.id))." -ForegroundColor Yellow
 } else {
     Write-Host "Creating tunnel '$TunnelName'..."
-    cloudflared tunnel create $TunnelName
+    Invoke-Cloudflared -Arguments @("tunnel", "create", $TunnelName) | Out-Host
 }
 
-$TunnelId = (cloudflared tunnel list --output json | ConvertFrom-Json | Where-Object { $_.name -eq $TunnelName } | Select-Object -First 1).id
+$TunnelId = (Get-CloudflaredTunnelJson | Where-Object { $_.name -eq $TunnelName } | Select-Object -First 1).id
 if (-not $TunnelId) {
     throw "Could not resolve tunnel id for $TunnelName"
 }
@@ -47,11 +68,11 @@ $credentialsPath = Join-Path $ConfigDir "$TunnelId.json"
 ) | Set-Content -Path $configPath -Encoding UTF8
 
 Write-Host "Route DNS $PublicHostname -> tunnel $TunnelName"
-cloudflared tunnel route dns $TunnelName $PublicHostname
+Invoke-Cloudflared -Arguments @("tunnel", "route", "dns", $TunnelName, $PublicHostname) | Out-Host
 
 Write-Host ""
 Write-Host "Config written: $configPath"
 Write-Host "Run tunnel:"
 Write-Host ('  cloudflared tunnel --config "' + $configPath + '" run ' + $TunnelName)
 Write-Host ""
-Write-Host "Set ERP Branch V8 middleware_tunnel_url to: https://$PublicHostname"
+Write-Host "Set ERP branch middleware_tunnel_url to: https://$PublicHostname"
