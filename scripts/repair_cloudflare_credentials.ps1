@@ -7,7 +7,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "lib\project_paths.ps1")
-. (Join-Path $PSScriptRoot "lib\cloudflared_windows.ps1")
 
 function Test-IsAdmin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -15,9 +14,22 @@ function Test-IsAdmin {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Find-CloudflaredExePath {
+    $candidates = @(
+        "C:\Program Files (x86)\cloudflared\cloudflared.exe",
+        "C:\Program Files\cloudflared\cloudflared.exe"
+    )
+    foreach ($path in $candidates) {
+        if (Test-Path $path) { return $path }
+    }
+    $cmd = Get-Command cloudflared -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    throw "cloudflared not found. Install from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
+}
+
 function Invoke-CloudflaredLines {
     param([string[]]$Arguments)
-    $exe = Find-CloudflaredExe
+    $exe = Find-CloudflaredExePath
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
