@@ -5,28 +5,69 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Resolve-PythonCommand {
-    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($pythonCmd) {
-        return [PSCustomObject]@{
-            Command = $pythonCmd.Source
-            Prefix  = @()
+function Refresh-SessionPath {
+    $machine = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $user = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machine;$user"
+}
+
+function Test-PythonExecutable {
+    param(
+        [string]$Command,
+        [string[]]$Prefix = @()
+    )
+    if (-not $Command -or -not (Test-Path $Command)) {
+        if ($Command -notmatch '\\') {
+            $resolved = Get-Command $Command -ErrorAction SilentlyContinue
+            if (-not $resolved) { return $false }
+            $Command = $resolved.Source
+        } else {
+            return $false
         }
     }
+    if ($Command -like "*\WindowsApps\*") { return $false }
+    try {
+        $args = @()
+        $args += $Prefix
+        $args += @("-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)")
+        & $Command @args 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
+
+function Resolve-PythonCommand {
+    Refresh-SessionPath
+
+    $candidates = @()
 
     $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
     if ($pyLauncher) {
-        foreach ($selector in @("-3.11", "-3")) {
-            try {
-                & $pyLauncher.Source $selector --version *> $null
-                if ($LASTEXITCODE -eq 0) {
-                    return [PSCustomObject]@{
-                        Command = $pyLauncher.Source
-                        Prefix  = @($selector)
-                    }
-                }
-            } catch {
-                # Keep trying other selectors.
+        $candidates += @{ Command = $pyLauncher.Source; Prefix = @("-3.11") }
+        $candidates += @{ Command = $pyLauncher.Source; Prefix = @("-3") }
+    }
+
+    foreach ($installPath in @(
+        "$env:LocalAppData\Programs\Python\Python311\python.exe",
+        "$env:ProgramFiles\Python311\python.exe",
+        "${env:ProgramFiles(x86)}\Python311\python.exe"
+    )) {
+        if (Test-Path $installPath) {
+            $candidates += @{ Command = $installPath; Prefix = @() }
+        }
+    }
+
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source -notlike "*\WindowsApps\*") {
+        $candidates += @{ Command = $pythonCmd.Source; Prefix = @() }
+    }
+
+    foreach ($candidate in $candidates) {
+        if (Test-PythonExecutable -Command $candidate.Command -Prefix $candidate.Prefix) {
+            return [PSCustomObject]@{
+                Command = $candidate.Command
+                Prefix  = $candidate.Prefix
             }
         }
     }
@@ -56,6 +97,9 @@ if (-not (Test-Path ".venv")) {
     $venvArgs += $python.Prefix
     $venvArgs += @("-m", "venv", ".venv")
     & $python.Command @venvArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to create virtual environment. Close this window, open a new Administrator cmd, run: py -3.11 --version then re-run 2-INSTALL_FACTORY.cmd"
+    }
 }
 
 $pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"

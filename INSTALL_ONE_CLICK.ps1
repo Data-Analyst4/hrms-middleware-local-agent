@@ -141,6 +141,10 @@ if (-not $SkipPrereqInstall) {
         if ($needsSqlServer) {
             Install-WithWinget -Id "Microsoft.msodbcsql.18" -DisplayName "ODBC Driver 18 for SQL Server"
         }
+        # winget installs Python but PATH is stale in this PowerShell session.
+        $machine = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+        $user = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $env:Path = "$machine;$user"
     }
 } else {
     Write-Host "Skipping prerequisite installation by request." -ForegroundColor Yellow
