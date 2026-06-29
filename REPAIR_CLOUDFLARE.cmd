@@ -14,8 +14,8 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 echo.
-echo Re-applying tunnel autostart...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\setup_cloudflare_autostart.ps1" -StartNow
+echo Re-applying tunnel autostart (reads configs\site.local.yaml for 1299 / site URL)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\repair_cloudflare_autostart.ps1" -StartNow
 if %errorlevel% neq 0 (
     echo Tunnel autostart setup failed. See errors above.
     pause
